@@ -1,109 +1,85 @@
-// src/view/keyboard.js
-
 const { Menu, MenuItem, dialog } = require('@electron/remote');
 
 module.exports = (emitter, state) => {
   const menu = new Menu();
 
-  // macOS App Menu (required)
   if (process.platform === 'darwin') {
     menu.append(new MenuItem({ role: 'appMenu' }));
   }
 
-  // Build submenu as ARRAY first
   const submenuTemplate = [
-    {
-      label: 'Open a Dialog',
-      accelerator: 'CommandOrControl+Alt+R',
-      click: () => dialog.showMessageBox({ message: 'Hello World!' })
-    },
-
     {
       label: 'New Tab',
       accelerator: 'CommandOrControl+T',
       click: () => emitter.emit('tabs-create')
     },
-
+    {
+      label: 'Reopen Closed Tab',
+      accelerator: 'CommandOrControl+Shift+T',
+      click: () => emitter.emit('tabs-reopen')
+    },
     {
       label: 'Close Tab',
       accelerator: 'CommandOrControl+W',
       click: () => emitter.emit('tabs-remove-current')
     },
-
+    { type: 'separator' },
     {
       label: 'Back',
-      accelerator: 'CommandOrControl+Left',
+      accelerator: 'Alt+Left',
       click: () => emitter.emit('webview-back')
     },
-
     {
       label: 'Forward',
-      accelerator: 'CommandOrControl+Right',
+      accelerator: 'Alt+Right',
       click: () => emitter.emit('webview-forward')
     },
-    
     { type: 'separator' },
-
     {
       label: 'Reload',
       accelerator: 'CommandOrControl+R',
-      click: () => emitter.emit('webview-reload')
+      role: 'reload'
     },
-
-    // TODO: Fix this
+    {
+      label: 'Force Reload',
+      accelerator: 'F5',
+      role: 'forceReload'
+    },
+    { type: 'separator' },
     {
       label: 'Last Tab',
       accelerator: 'CommandOrControl+0',
       click: () => emitter.emit('tabs-last')
+    },
+    {
+      label: 'Previous Tab',
+      accelerator: 'CommandOrControl+Shift+Left',
+      click: () => emitter.emit('tabs-prev')
+    },
+    {
+      label: 'Next Tab',
+      accelerator: 'CommandOrControl+Shift+Right',
+      click: () => emitter.emit('tabs-next')
+    },
+    { type: 'separator' },
+    {
+      label: 'Open DevTools',
+      accelerator: 'CommandOrControl+Shift+D',
+      click: () => emitter.emit('open-devtools')
+    },
+    {
+      label: 'Open Home',
+      accelerator: 'CommandOrControl+Shift+H',
+      click: () => emitter.emit('webview-home')
+    },
+    {
+      label: 'Open History',
+      accelerator: 'CommandOrControl+Y',
+      click: () => emitter.emit('webview-history')
     }
-
-    // TODO: command + shift + d / ctrl + shift + d
-    , {
-  label: 'Open DevTools',
-  accelerator: 'CommandOrControl+Shift+D',
-  click: () => emitter.emit('open-devtools')
-}
-
-    // TODO: command + shift + a / ctrl + shift + a
-    , {
-      label: "Open About",
-      accelerator: "Command+Shift+A",
-      click: () => emitter.emit("webview-about")
-    },
-
-    // TODO: command + shift + h / ctrl + shift + h
-    {
-      label: "Open Home",
-      accelerator: "Command+Shift+H",
-      click: () => emitter.emit("webview-home")
-    },
-
-    // TODO: command  + h / ctrl  + h
-    {
-  label: "Open History",
-  accelerator: "CommandOrControl+Y",
-  click: () => emitter.emit("webview-history")
-},
-    {
-  label: 'Previous Tab',
-  accelerator: 'CommandOrControl+Shift+Left',
-  click: () => {
-    emitter.emit('tabs-prev');
-  }
-},
-
-{
-  label: 'Next Tab',
-  accelerator: 'CommandOrControl+Shift+Right',
-  click: () => {
-    emitter.emit('tabs-next');
-  }
-}
   ];
 
-  // ? Cmd/Ctrl + 1–9 → Switch Tabs
-  for (let i = 1; i <= 9; i++)
-     {
+  for (let i = 1; i <= 9; i++) {
     submenuTemplate.push({
       label: `Tab ${i}`,
       accelerator: `CommandOrControl+${i}`,

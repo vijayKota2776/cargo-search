@@ -47,92 +47,93 @@ a:hover {
 `;
 
 const overlayStyles = vxv`
-  width: 550px;
-  height: 38px;
-  position: fixed;
-  top: 0px;
-  margin: 0px auto;
-  z-index: 100;
-  background: white;
-  left: 0px;
-  right: 0px;
-  text-align: center;
-  line-height: 38px;
-  font-size: .8em;
+width: 550px;
+height: 38px;
+position: fixed;
+top: 0px;
+margin: 0px auto;
+z-index: 100;
+background: white;
+left: 0px;
+right: 0px;
+text-align: center;
+line-height: 38px;
+font-size: .8em;
 `;
 
-let toggle = false;
-let a = () => {};
+module.exports = (emitter, state) => {
+  state.history = state.history || [];
 
-// const db = new dexie('history');
-//
-// db.version(1).stores({
-//   visit: 'url, title, timestamp'
-// });
+  let toggle = false;
+  let closeOverlay = () => {};
 
-module.exports = emitter => {
-  const titleBarOverlay = html`<div id="history-overlay" class="${overlayStyles}">History</div>`;
+  const titleBarOverlay = html`
+    <div id="history-overlay" class="${overlayStyles}">History</div>
+  `;
 
-  const element = html`<div id="history" class="${styles}">
-    <ul class="history">
-    </ul>
-  </div>`;
+  const element = html`
+    <div id="history" class="${styles}">
+      <ul class="history"></ul>
+    </div>
+  `;
+
+  const render = () => {
+    const list = element.querySelector('.history');
+    list.innerHTML = '';
+
+    state.history
+      .slice()
+      .reverse()
+      .forEach(item => {
+        const date = new Date(item.timestamp);
+
+        const li = html`
+          <li>
+            <span class="title">${dotify(item.title || 'Untitled', 30)}</span>
+            <span class="time">${date.toLocaleString()}</span>
+            <br>
+            <span class="url">
+              <a onclick=${() => {
+                item.closed = false;
+                emitter.emit('tabs-create', item.url);
+                closeOverlay();
+                toggle = false;
+                document.body.removeChild(titleBarOverlay);
+              }}>
+                ${dotify(item.url, 50)}
+              </a>
+            </span>
+          </li>
+        `;
+
+        list.appendChild(li);
+      });
+  };
 
   emitter.on('history-toggle', () => {
     if (toggle) {
-      a();
-
-      toggle = !toggle;
-
+      closeOverlay();
       document.body.removeChild(titleBarOverlay);
-    } else {
-      a = alert({
-        // heading: 'Menu',
-        text: element,
-        position: 'bottom'
-      });
-
-      document.body.appendChild(titleBarOverlay);
-
-      const history = document.querySelector('.history');
-
-      for (let child of history.childNodes) {
-        history.removeChild(child);
-      }
-
-      // db.visit
-      //   .where('timestamp')
-      //   .above(25)
-      //   .reverse()
-      //   .each(data => {
-      //     const date = new Date();
-      //     date.setTime(data.timestamp);
-      //
-      //     const li = html`<li>
-      //     <span class="title">${dotify(data.title, 30)}</span>
-      //     <span class="time">${date.toLocaleString()}</span>
-      //     <br>
-      //     <span class="url"><a onclick=${() => {
-      //       emitter.emit('tabs-create', data.url);
-      //       a();
-      //       toggle = !toggle;
-      //     }}>${dotify(data.url, 30)}</a></span>
-      //   </li>`;
-      //
-      //     history.appendChild(li);
-      //   });
-
-      toggle = !toggle;
+      toggle = false;
+      return;
     }
+
+    render();
+    closeOverlay = alert({
+      text: element,
+      position: 'bottom'
+    });
+
+    document.body.appendChild(titleBarOverlay);
+    toggle = true;
   });
 
-  emitter.on('history-navigated', data => {
-    const time = new Date().getTime();
-
-    // db.visit.add({
-    //   url: data.url,
-    //   title: data.title,
-    //   timestamp: time
-    // });
+  emitter.on('history-add', ({ url, title }) => {
+    state.history.push({
+      url,
+      title,
+      timestamp: Date.now(),
+      closed: false
+    });
   });
 };

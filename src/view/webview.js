@@ -4,7 +4,6 @@ const { parse } = require('tldjs');
 const normalizeUrl = require('normalize-url');
 const url = require('url');
 const path = require('path');
-
 const remote = require('@electron/remote');
 
 const pages = require('./utils/pages');
@@ -12,10 +11,8 @@ const uuid = require('./utils/uuid');
 
 module.exports = (emitter, state) => {
   let focusedView = -1;
+  const closedTabs = [];
 
-  /*
-    DOM listeners
-  */
   const didStartLoading = () => emitter.emit('progress-start');
 
   const didStopLoading = () => {
@@ -54,9 +51,6 @@ module.exports = (emitter, state) => {
     webview.setAttribute('src', './pages/error.html');
   };
 
-  /*
-    Create WebView
-  */
   const create = src => {
     const id = '_wv_' + uuid();
 
@@ -78,7 +72,6 @@ module.exports = (emitter, state) => {
     document.body.appendChild(viewElement);
 
     state.views.push({ element: viewElement, id });
-
     changeView(state.views.length - 1);
 
     const webview = document.querySelector(`#${id}`);
@@ -87,27 +80,23 @@ module.exports = (emitter, state) => {
     webview.addEventListener('did-stop-loading', didStopLoading);
     webview.addEventListener('page-title-updated', pageTitleUpdated);
     webview.addEventListener('did-navigate', didNavigate);
+    webview.addEventListener('did-navigate-in-page', didNavigate);
     webview.addEventListener('did-fail-load', loadingError);
 
-    /*
-      🔑 KEYBOARD SHORTCUTS (WORKS WHEN WEBVIEW IS FOCUSED)
-    */
     webview.addEventListener('before-input-event', event => {
       const i = event.input;
       const isMac = process.platform === 'darwin';
       const key = i.key.toLowerCase();
 
-      // DevTools ⌘⇧D / Ctrl⇧D
       if (
         (isMac && i.meta && i.shift && key === 'd') ||
         (!isMac && i.control && i.shift && key === 'd')
       ) {
         event.preventDefault();
-        emitter.emit('webview-devtools');
+        emitter.emit('open-devtools');
         return;
       }
 
-      // History ⌘H / Ctrl+H
       if (
         (isMac && i.meta && !i.shift && key === 'h') ||
         (!isMac && i.control && !i.shift && key === 'h')
@@ -117,7 +106,6 @@ module.exports = (emitter, state) => {
         return;
       }
 
-      // Prev Tab ⌘⇧←
       if (
         (isMac && i.meta && i.shift && i.key === 'ArrowLeft') ||
         (!isMac && i.control && i.shift && i.key === 'ArrowLeft')
@@ -127,7 +115,6 @@ module.exports = (emitter, state) => {
         return;
       }
 
-      // Next Tab ⌘⇧→
       if (
         (isMac && i.meta && i.shift && i.key === 'ArrowRight') ||
         (!isMac && i.control && i.shift && i.key === 'ArrowRight')
@@ -137,7 +124,6 @@ module.exports = (emitter, state) => {
         return;
       }
 
-      // Last Tab ⌘0
       if (
         (isMac && i.meta && key === '0') ||
         (!isMac && i.control && key === '0')
@@ -147,7 +133,6 @@ module.exports = (emitter, state) => {
         return;
       }
 
-      // Tabs ⌘1–9
       if (
         ((isMac && i.meta) || (!isMac && i.control)) &&
         key >= '1' &&
@@ -155,17 +140,24 @@ module.exports = (emitter, state) => {
       ) {
         event.preventDefault();
         emitter.emit('tabs-go-to', Number(key) - 1);
+        return;
+      }
+
+      if (
+        (isMac && i.meta && !i.shift && key === 'w') ||
+        (!isMac && i.control && !i.shift && key === 'w')
+      ) {
+        event.preventDefault();
+        emitter.emit('tabs-remove-current');
+        return;
       }
     });
 
     return state.views.length - 1;
   };
 
-  /*
-    View switching
-  */
   const changeView = id => {
-    if (focusedView >= 0) {
+    if (focusedView >= 0 && state.views[focusedView]) {
       state.views[focusedView].element.style.display = 'none';
     }
 
@@ -178,28 +170,38 @@ module.exports = (emitter, state) => {
 
   const remove = id => {
     const el = state.views[id];
+    if (!el) return;
+
+    const webview = document.querySelector(`#${el.id}`);
+    if (webview) {
+      closedTabs.push(webview.getURL());
+    }
+
     el.element.remove();
     state.views.splice(id, 1);
 
     if (state.views.length === 0) {
-      remote.getCurrentWindow().close();
+      emitter.emit('webview-create');
       return;
     }
 
     changeView(Math.max(0, id - 1));
   };
 
-  /*
-    Events
-  */
   emitter.on('webview-create', create);
   emitter.on('webview-remove', remove);
   emitter.on('webview-change', changeView);
 
+  emitter.on('tabs-reopen', () => {
+    const url = closedTabs.pop();
+    if (!url) return;
+    emitter.emit('webview-create', url);
+  });
+
   emitter.on('open-devtools', () => {
-  const win = remote.getCurrentWindow();
-  win.webContents.openDevTools({ mode: 'bottom' });
-});
+    const win = remote.getCurrentWindow();
+    win.webContents.openDevTools({ mode: 'bottom' });
+  });
 
   emitter.on('webview-history', () => {
     const webview = document.querySelector(`#${state.views[focusedView].id}`);
